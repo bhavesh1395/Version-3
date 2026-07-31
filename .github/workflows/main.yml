@@ -23,7 +23,6 @@ jobs:
     - name: Compile Optimized Web Production Build
       run: npm run build
       env:
-        # Forces Vite to drop dead code, minimize bundle size, and optimize assets
         NODE_ENV: production
 
     - name: Setup Capacitor with Hardware Acceleration Flags
@@ -44,12 +43,13 @@ jobs:
         distribution: 'zulu'
 
     - name: Grant Execute Permission for Gradle
+      # FIXED: Changed the path to point inside the android folder
       run: chmod +x android/gradlew
 
     - name: Build Optimized Android APK
       run: |
+        # FIXED: Navigates inside the android directory to run the build script
         cd android
-        # Runs a clean build to optimize memory allocation during runtime
         ./gradlew clean assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
 
     - name: Upload Ultra-Smooth APK
@@ -57,4 +57,3 @@ jobs:
       with:
         name: smooth-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
-        

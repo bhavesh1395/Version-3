@@ -1,4 +1,4 @@
-name: Build High-Performance APK
+name: Build APK (Final Fix)
 
 on:
   workflow_dispatch:
@@ -25,13 +25,13 @@ jobs:
       env:
         NODE_ENV: production
 
-    - name: Setup Capacitor with Hardware Acceleration Flags
+    - name: Setup Capacitor and Android
       run: |
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
         npx cap add android
         
-        # Enables Hardware WebView Acceleration & Smooth Scrolling natively
+        # Enables Hardware WebView Acceleration
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
         
         npx cap sync android
@@ -42,18 +42,21 @@ jobs:
         java-version: '17'
         distribution: 'zulu'
 
+    # NEW STEP: If you don't see this step in your logs, the code didn't update!
+    - name: Verify Android Folder Exists (Debug)
+      run: ls -R android
+
     - name: Grant Execute Permission for Gradle
-      # FIXED: Points directly to the android folder
       run: chmod +x android/gradlew
 
     - name: Build Optimized Android APK
-      # FIXED: Moves inside the android folder before building
       run: |
         cd android
         ./gradlew clean assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
 
-    - name: Upload Ultra-Smooth APK
+    - name: Upload Final APK
       uses: actions/upload-artifact@v4
       with:
-        name: smooth-app-apk
+        name: final-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
+        

@@ -1,4 +1,4 @@
-name: Build APK (Universal Fix)
+name: Fast Build (Anti-Hang)
 
 on:
   workflow_dispatch:
@@ -6,43 +6,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Auto-kills if it gets stuck again
 
     steps:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    - name: 📦 UNZIP and FIX Folder Structure
+    - name: ⚡ Fix Heavy Files & Folder Structure
       run: |
-        echo "--- Step 1: Check for ZIP files ---"
-        # Find any zip file in the root
+        echo "--- Step 1: Handle ZIPs ---"
         ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-        
         if [ -n "$ZIP_FILE" ]; then
-             echo "Found ZIP file: $ZIP_FILE"
-             echo "Unzipping..."
+             echo "Unzipping $ZIP_FILE..."
              unzip -q "$ZIP_FILE"
              rm "$ZIP_FILE"
-        else
-             echo "No ZIP file found. Checking for folders..."
         fi
-        
-        echo "--- Step 2: Hunt for package.json ---"
-        # Find package.json up to 4 folders deep
-        PKG_PATH=$(find . -maxdepth 4 -name package.json -not -path "*/node_modules/*" | head -n 1)
+
+        echo "--- Step 2: DELETE node_modules (The cause of the lag) ---"
+        # We delete this to prevent the 25-minute hang
+        find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
+        echo "✅ Heavy folders removed."
+
+        echo "--- Step 3: Move Project to Root ---"
+        # Find package.json again
+        PKG_PATH=$(find . -maxdepth 4 -name package.json | head -n 1)
         
         if [ -z "$PKG_PATH" ]; then
-             echo "❌ ERROR: No package.json found. Here is the full file list:"
-             ls -R
+             echo "❌ No package.json found."
              exit 1
         fi
         
-        echo "✅ Found package.json at: $PKG_PATH"
-        
-        # Move files if they are in a subfolder
         PROJECT_DIR=$(dirname "$PKG_PATH")
-        
         if [ "$PROJECT_DIR" != "." ]; then
-             echo "Moving project files to root directory..."
+             echo "Moving files from $PROJECT_DIR to root..."
              cp -r "$PROJECT_DIR"/* .
              cp -r "$PROJECT_DIR"/.* . 2>/dev/null || true
         fi
@@ -52,23 +48,21 @@ jobs:
       with:
         node-version: 20
 
-    - name: Install Dependencies
+    - name: Install Dependencies (Fresh)
       run: npm install --no-audit --no-fund
 
-    - name: Build Web App (Production Mode)
+    - name: Build Web App
       run: npm run build
       env:
         NODE_ENV: production
 
-    - name: Setup Capacitor and Android
+    - name: Setup Capacitor
       run: |
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
         npx cap add android
-        
-        # Optimization: Enable hardware acceleration for 60FPS smoothness
+        # Optimization for speed
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
-        
         npx cap sync android
 
     - name: Set up JDK 17
@@ -77,16 +71,15 @@ jobs:
         java-version: '17'
         distribution: 'zulu'
 
-    - name: Fix Gradle Permissions
-      run: chmod +x android/gradlew
-
-    - name: Build APK
+    - name: Build APK (Fast Mode)
       run: |
+        chmod +x android/gradlew
         cd android
-        ./gradlew clean assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
+        # Removed "clean" to make it faster
+        ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: universal-app-apk
+        name: fast-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk

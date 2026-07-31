@@ -1,4 +1,3 @@
-name: Build APK (No Daemon Fix)
 name: Build APK (Kotlin Fix)
 
 on:

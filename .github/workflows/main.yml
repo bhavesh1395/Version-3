@@ -1,4 +1,4 @@
-name: Build Smooth APK (Final)
+name: Build APK (Auto-Fix Zip)
 
 on:
   workflow_dispatch:
@@ -11,11 +11,26 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
+    # === THIS IS THE NEW MAGIC STEP ===
+    - name: 📂 Auto-Fix "Zip Folder" Mistake
+      run: |
+        # This searches for where package.json is hiding
+        echo "Searching for project files..."
+        PROJECT_ROOT=$(find . -maxdepth 3 -name package.json -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
+        
+        if [ -z "$PROJECT_ROOT" ] || [ "$PROJECT_ROOT" == "." ]; then
+          echo "Files are already in the root, or no package.json found."
+        else
+          echo "✅ Found project hiding in: $PROJECT_ROOT"
+          echo "Moving files to the main folder..."
+          mv "$PROJECT_ROOT"/* .
+          mv "$PROJECT_ROOT"/.* . 2>/dev/null || true
+        fi
+
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20
-        # REMOVED cache: 'npm' to fix your "Lock file not found" error
 
     - name: Install Dependencies
       run: npm install --no-audit --no-fund
@@ -31,7 +46,7 @@ jobs:
         npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
         npx cap add android
         
-        # Optimization: Enable hardware acceleration for smooth 60fps
+        # Optimization: Enable hardware acceleration
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
         
         npx cap sync android
@@ -43,7 +58,6 @@ jobs:
         distribution: 'zulu'
 
     - name: Fix Gradle Permissions
-      # This points to the correct folder created by Capacitor
       run: chmod +x android/gradlew
 
     - name: Build APK

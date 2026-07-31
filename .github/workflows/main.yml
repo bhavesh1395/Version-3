@@ -1,31 +1,60 @@
-name: Build Smooth Android APK
+name: Build High-Performance APK
 
 on:
-  push:
-    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Code
+    - name: Checkout Source Code
       uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm install --no-audit --no-fund
+
+    - name: Compile Optimized Web Production Build
+      run: npm run build
+      env:
+        # Forces Vite to drop dead code, minimize bundle size, and optimize assets
+        NODE_ENV: production
+
+    - name: Setup Capacitor with Hardware Acceleration Flags
+      run: |
+        npm install @capacitor/core @capacitor/cli @capacitor/android
+        npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
+        npx cap add android
+        
+        # Enables Hardware WebView Acceleration & Smooth Scrolling natively
+        sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
+        
+        npx cap sync android
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
-        distribution: 'temurin'
+        distribution: 'zulu'
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+    - name: Grant Execute Permission for Gradle
+      run: chmod +x android/gradlew
 
-    - name: Build Release APK for Performance
-      run: ./gradlew assembleRelease
+    - name: Build Optimized Android APK
+      run: |
+        cd android
+        # Runs a clean build to optimize memory allocation during runtime
+        ./gradlew clean assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
 
-    - name: Upload APK
+    - name: Upload Ultra-Smooth APK
       uses: actions/upload-artifact@v4
       with:
-        name: smooth-app-release
-        path: app/build/outputs/apk/release/*.apk
+        name: smooth-app-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        

@@ -1,4 +1,4 @@
-name: Fast Build (Anti-Hang)
+name: Build APK (Java 21 Fix)
 
 on:
   workflow_dispatch:
@@ -6,15 +6,15 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15  # Auto-kills if it gets stuck again
+    timeout-minutes: 20
 
     steps:
-    - name: Checkout Source Code
+    - name: Fast Checkout
       uses: actions/checkout@v4
 
-    - name: ⚡ Fix Heavy Files & Folder Structure
+    - name: ⚡ Fix Files & Clean Up
       run: |
-        echo "--- Step 1: Handle ZIPs ---"
+        # 1. Unzip any zip files found
         ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
         if [ -n "$ZIP_FILE" ]; then
              echo "Unzipping $ZIP_FILE..."
@@ -22,25 +22,18 @@ jobs:
              rm "$ZIP_FILE"
         fi
 
-        echo "--- Step 2: DELETE node_modules (The cause of the lag) ---"
-        # We delete this to prevent the 25-minute hang
+        # 2. DELETE node_modules to prevent hanging
         find . -name "node_modules" -type d -prune -exec rm -rf '{}' +
-        echo "✅ Heavy folders removed."
 
-        echo "--- Step 3: Move Project to Root ---"
-        # Find package.json again
+        # 3. Move files to root if hidden in subfolder
         PKG_PATH=$(find . -maxdepth 4 -name package.json | head -n 1)
-        
-        if [ -z "$PKG_PATH" ]; then
-             echo "❌ No package.json found."
-             exit 1
-        fi
-        
-        PROJECT_DIR=$(dirname "$PKG_PATH")
-        if [ "$PROJECT_DIR" != "." ]; then
-             echo "Moving files from $PROJECT_DIR to root..."
-             cp -r "$PROJECT_DIR"/* .
-             cp -r "$PROJECT_DIR"/.* . 2>/dev/null || true
+        if [ -n "$PKG_PATH" ]; then
+             PROJECT_DIR=$(dirname "$PKG_PATH")
+             if [ "$PROJECT_DIR" != "." ]; then
+                  echo "Moving files to root..."
+                  cp -r "$PROJECT_DIR"/* .
+                  cp -r "$PROJECT_DIR"/.* . 2>/dev/null || true
+             fi
         fi
 
     - name: Set up Node.js
@@ -48,7 +41,7 @@ jobs:
       with:
         node-version: 20
 
-    - name: Install Dependencies (Fresh)
+    - name: Install Dependencies
       run: npm install --no-audit --no-fund
 
     - name: Build Web App
@@ -61,25 +54,25 @@ jobs:
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
         npx cap add android
-        # Optimization for speed
+        # Optimization: Hardware Acceleration
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
         npx cap sync android
 
-    - name: Set up JDK 17
+    - name: Set up JDK 21 (NEW)
       uses: actions/setup-java@v4
       with:
-        java-version: '17'
+        java-version: '21'   # <--- THIS IS THE FIX
         distribution: 'zulu'
 
-    - name: Build APK (Fast Mode)
+    - name: Build APK
       run: |
         chmod +x android/gradlew
         cd android
-        # Removed "clean" to make it faster
-        ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m"
+        # Build command
+        ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx3072m"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: fast-app-apk
+        name: my-final-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk

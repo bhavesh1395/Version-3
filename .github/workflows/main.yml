@@ -20,15 +20,12 @@ jobs:
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
-      working-directory: ./Version-3
 
     - name: Build Release APK for Performance
       run: ./gradlew assembleRelease
-      working-directory: ./Version-3
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: smooth-app-release
-        path: '**/build/outputs/apk/release/*.apk'
-        
+        path: app/build/outputs/apk/release/*.apk

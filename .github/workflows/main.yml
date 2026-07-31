@@ -43,12 +43,10 @@ jobs:
         distribution: 'zulu'
 
     - name: Grant Execute Permission for Gradle
-      # FIXED: Changed the path to point inside the android folder
       run: chmod +x android/gradlew
 
     - name: Build Optimized Android APK
       run: |
-        # FIXED: Navigates inside the android directory to run the build script
         cd android
         ./gradlew clean assembleDebug -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m"
 
@@ -57,3 +55,4 @@ jobs:
       with:
         name: smooth-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
+        

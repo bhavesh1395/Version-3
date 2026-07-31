@@ -1,4 +1,4 @@
-name: Build APK (Java 21 Fix)
+name: Build APK (No Daemon Fix)
 
 on:
   workflow_dispatch:
@@ -58,21 +58,22 @@ jobs:
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
         npx cap sync android
 
-    - name: Set up JDK 21 (NEW)
+    - name: Set up JDK 21
       uses: actions/setup-java@v4
       with:
-        java-version: '21'   # <--- THIS IS THE FIX
+        java-version: '21'
         distribution: 'zulu'
 
-    - name: Build APK
+    - name: Build APK (No Daemon Mode)
       run: |
         chmod +x android/gradlew
         cd android
-        # Build command
-        ./gradlew assembleDebug -Dorg.gradle.jvmargs="-Xmx3072m"
+        # FIXED: Added --no-daemon to prevent the 17-minute freeze
+        ./gradlew assembleDebug --no-daemon --console=plain -Dorg.gradle.jvmargs="-Xmx2560m"
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: my-final-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
+

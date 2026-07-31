@@ -1,4 +1,4 @@
-name: Build APK (Auto-Fix Zip)
+name: Build APK (Universal Fix)
 
 on:
   workflow_dispatch:
@@ -11,20 +11,40 @@ jobs:
     - name: Checkout Source Code
       uses: actions/checkout@v4
 
-    # === THIS IS THE NEW MAGIC STEP ===
-    - name: 📂 Auto-Fix "Zip Folder" Mistake
+    - name: 📦 UNZIP and FIX Folder Structure
       run: |
-        # This searches for where package.json is hiding
-        echo "Searching for project files..."
-        PROJECT_ROOT=$(find . -maxdepth 3 -name package.json -not -path "*/node_modules/*" | head -n 1 | xargs dirname)
+        echo "--- Step 1: Check for ZIP files ---"
+        # Find any zip file in the root
+        ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
         
-        if [ -z "$PROJECT_ROOT" ] || [ "$PROJECT_ROOT" == "." ]; then
-          echo "Files are already in the root, or no package.json found."
+        if [ -n "$ZIP_FILE" ]; then
+             echo "Found ZIP file: $ZIP_FILE"
+             echo "Unzipping..."
+             unzip -q "$ZIP_FILE"
+             rm "$ZIP_FILE"
         else
-          echo "✅ Found project hiding in: $PROJECT_ROOT"
-          echo "Moving files to the main folder..."
-          mv "$PROJECT_ROOT"/* .
-          mv "$PROJECT_ROOT"/.* . 2>/dev/null || true
+             echo "No ZIP file found. Checking for folders..."
+        fi
+        
+        echo "--- Step 2: Hunt for package.json ---"
+        # Find package.json up to 4 folders deep
+        PKG_PATH=$(find . -maxdepth 4 -name package.json -not -path "*/node_modules/*" | head -n 1)
+        
+        if [ -z "$PKG_PATH" ]; then
+             echo "❌ ERROR: No package.json found. Here is the full file list:"
+             ls -R
+             exit 1
+        fi
+        
+        echo "✅ Found package.json at: $PKG_PATH"
+        
+        # Move files if they are in a subfolder
+        PROJECT_DIR=$(dirname "$PKG_PATH")
+        
+        if [ "$PROJECT_DIR" != "." ]; then
+             echo "Moving project files to root directory..."
+             cp -r "$PROJECT_DIR"/* .
+             cp -r "$PROJECT_DIR"/.* . 2>/dev/null || true
         fi
 
     - name: Set up Node.js
@@ -35,18 +55,18 @@ jobs:
     - name: Install Dependencies
       run: npm install --no-audit --no-fund
 
-    - name: Build Web App
+    - name: Build Web App (Production Mode)
       run: npm run build
       env:
         NODE_ENV: production
 
-    - name: Setup Capacitor (Create Android App)
+    - name: Setup Capacitor and Android
       run: |
         npm install @capacitor/core @capacitor/cli @capacitor/android
         npx cap init "My AI App" "com.aiapp.shiksha" --web-dir=dist
         npx cap add android
         
-        # Optimization: Enable hardware acceleration
+        # Optimization: Enable hardware acceleration for 60FPS smoothness
         sed -i 's/<\/application>/    <meta-data android:name="android.webkit.WebView.EnableSafeBrowsing" android:value="false" \/>\n    <\/application>/' android/app/src/main/AndroidManifest.xml
         
         npx cap sync android
@@ -68,5 +88,5 @@ jobs:
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: final-app-apk
+        name: universal-app-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
